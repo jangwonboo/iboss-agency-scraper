@@ -777,23 +777,50 @@ class IBossScraper:
                     
                     # If still not found, try to find by position (last item or after current page)
                     if not next_button and len(page_links) > 1:
-                        # Try to identify current page
+                        # Try to identify current page using known class names
                         current_page_elem = None
                         for elem in page_links:
-                            if elem.get_attribute('class') and ('active' in elem.get_attribute('class') or 'current' in elem.get_attribute('class')):
+                            class_attr = elem.get_attribute('class') or ''
+                            # 추가: LF_page_link_current 클래스 확인
+                            if ('LF_page_link_current' in class_attr) or ('active' in class_attr) or ('current' in class_attr):
                                 current_page_elem = elem
+                                print(f"Found current page element with class: {class_attr}")
                                 break
                         
                         if current_page_elem:
                             # Try to get the next sibling
-                            next_button = self.page.evaluate("""
-                                (element) => {
-                                    const nextSibling = element.nextElementSibling;
-                                    return nextSibling && nextSibling.tagName.toLowerCase() === 'a' ? nextSibling : null;
-                                }
-                            """, current_page_elem)
-                            if next_button:
-                                print("Found next button as sibling of current page element")
+                            try:
+                                # JavaScript로 현재 페이지 다음 링크 찾기
+                                next_button = self.page.evaluate("""
+                                    (element) => {
+                                        const nextSibling = element.nextElementSibling;
+                                        return nextSibling && nextSibling.tagName.toLowerCase() === 'a' ? nextSibling : null;
+                                    }
+                                """, current_page_elem)
+                                if next_button:
+                                    print("Found next button as sibling of current page element")
+                            except Exception as e:
+                                print(f"Error finding next sibling: {e}")
+                                
+                            # 다음 페이지 버튼을 찾지 못한 경우, LF_page_link_current 다음 버튼 찾기 시도
+                            if not next_button:
+                                try:
+                                    # 숫자 버튼들 중에서 현재 페이지 다음 버튼 찾기
+                                    current_page_num = int(current_page_elem.inner_text().strip())
+                                    print(f"Current page number: {current_page_num}")
+                                    
+                                    for elem in page_links:
+                                        try:
+                                            page_num = int(elem.inner_text().strip())
+                                            if page_num == current_page_num + 1:
+                                                next_button = elem
+                                                print(f"Found next page button with number: {page_num}")
+                                                break
+                                        except ValueError:
+                                            # 숫자가 아닌 텍스트는 무시
+                                            continue
+                                except Exception as e:
+                                    print(f"Error finding next page by number: {e}")
                         else:
                             # Try the last link if it might be a next button
                             last_link = page_links[-1]
